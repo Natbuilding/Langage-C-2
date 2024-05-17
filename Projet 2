@@ -1,0 +1,244 @@
+#include <stdio.h>
+#include <string.h>
+
+#define MAX_TRANSACTIONS 100
+#define MAX_COMPTES 100
+#define MAX_ATTEMPTS 3
+
+// Definition de la structure Transaction
+typedef struct {
+    char type[10];
+    float montant;
+} Transaction;
+
+// Definition de la structure Compte
+typedef struct {
+    char nom[50];
+    int numero_compte;
+    char mot_de_passe[20];
+    float solde;
+    Transaction transactions[MAX_TRANSACTIONS];
+    int nb_transactions;
+    int bloque;  // Indicateur si le compte est bloque
+} Compte;
+
+// Fonctions prototypes
+void afficher_solde(Compte *compte);
+void depot(Compte *compte, float montant);
+void retrait(Compte *compte, float montant);
+int connexion(Compte comptes[], int taille, int numero_compte, char* mot_de_passe);
+void afficher_historique(Compte *compte);
+void changer_mot_de_passe(Compte *compte);
+int inscription(Compte comptes[], int *taille);
+int generer_numero_compte(Compte comptes[], int taille);
+int trouver_compte(Compte comptes[], int taille, int numero_compte);
+
+int main() {
+    // Initialisation des comptes
+    Compte comptes[MAX_COMPTES] = {
+        {"Alice", 1001, "alice123", 1500.0, {}, 0, 0},
+        {"Bob", 1002, "bob123", 2000.0, {}, 0, 0},
+        {"Charlie", 1003, "charlie123", 3000.0, {}, 0, 0}
+    };
+    int taille = 3; // Nombre initial de comptes
+
+    int choix;
+    do {
+        printf("\nMenu Principal\n");
+        printf("1. Connexion\n");
+        printf("2. Inscription\n");
+        printf("3. Quitter\n");
+        printf("Entrez votre choix: ");
+        scanf("%d", &choix);
+
+        switch (choix) {
+            case 1: {
+                int numero_compte;
+                char mot_de_passe[20];
+                int attempts = 0;
+                int index = -1;
+
+                printf("Entrez votre numero de compte: ");
+                scanf("%d", &numero_compte);
+
+                index = trouver_compte(comptes, taille, numero_compte);
+                // Vérification si le numéro de compte existe
+                if (index == -1) {
+                    printf("Numero de compte incorrect!\n");
+                    break;
+                }
+
+                // Vérification si le compte est bloqué
+                if (comptes[index].bloque) {
+                    printf("Compte bloque. Veuillez contacter l'administrateur ou vous rendre dans une de nos agences. Nous vous remercions.\n");
+                    break;
+                }
+
+                while (attempts < MAX_ATTEMPTS) {
+                    printf("Entrez votre mot de passe: ");
+                    scanf("%s", mot_de_passe);
+
+                    if (connexion(comptes, taille, numero_compte, mot_de_passe) != -1) {
+                        break;
+                    }
+
+                    attempts++;
+                    if (attempts < MAX_ATTEMPTS) {
+                        printf("Mot de passe incorrect! Tentatives restantes: %d\n", MAX_ATTEMPTS - attempts);
+                    }
+                }
+
+                if (attempts == MAX_ATTEMPTS) {
+                    printf("Compte bloque apres %d tentatives echouees.\n", MAX_ATTEMPTS);
+                    comptes[index].bloque = 1; // Bloquer le compte
+                    break;
+                }
+
+                Compte *compte_actuel = &comptes[index];
+
+                do {
+                    printf("\n1. Afficher le solde\n");
+                    printf("2. Depot\n");
+                    printf("3. Retrait\n");
+                    printf("4. Afficher l'historique des transactions\n");
+                    printf("5. Changer le mot de passe\n");
+                    printf("6. Deconnexion\n");
+                    printf("Entrez votre choix: ");
+                    scanf("%d", &choix);
+
+                    float montant;  // Declaration de la variable montant
+
+                    switch (choix) {
+                        case 1:
+                            afficher_solde(compte_actuel);
+                            break;
+                        case 2:
+                            printf("Entrez le montant a deposer: ");
+                            scanf("%f", &montant);
+                            depot(compte_actuel, montant);
+                            break;
+                        case 3:
+                            printf("Entrez le montant a retirer: ");
+                            scanf("%f", &montant);
+                            retrait(compte_actuel, montant);
+                            break;
+                        case 4:
+                            afficher_historique(compte_actuel);
+                            break;
+                        case 5:
+                            changer_mot_de_passe(compte_actuel);
+                            break;
+                        case 6:
+                            printf("Deconnexion reussie.\n");
+                            break;
+                        default:
+                            printf("Choix invalide.\n");
+                    }
+                } while (choix != 6);
+
+                break;
+            }
+            case 2:
+                taille = inscription(comptes, &taille);
+                break;
+            case 3:
+                printf("Merci d'avoir utilise le guichet automatique.\n");
+                break;
+            default:
+                printf("Choix invalide.\n");
+        }
+    } while (choix != 3);
+
+    return 0;
+}
+
+void afficher_solde(Compte *compte) {
+    printf("Solde actuel: %.2f\n", compte->solde);
+}
+
+void depot(Compte *compte, float montant) {
+    compte->solde += montant;
+    strcpy(compte->transactions[compte->nb_transactions].type, "Depot");
+    compte->transactions[compte->nb_transactions].montant = montant;
+    compte->nb_transactions++;
+    printf("Depot reussi! Nouveau solde: %.2f\n", compte->solde);
+}
+
+void retrait(Compte *compte, float montant) {
+    if (montant > compte->solde) {
+        printf("Fonds insuffisants!\n");
+    } else {
+        compte->solde -= montant;
+        strcpy(compte->transactions[compte->nb_transactions].type, "Retrait");
+        compte->transactions[compte->nb_transactions].montant = montant;
+        compte->nb_transactions++;
+        printf("Retrait reussi! Nouveau solde: %.2f\n", compte->solde);
+    }
+}
+
+void afficher_historique(Compte *compte) {
+    int i;
+    printf("Historique des transactions:\n");
+    for (i = 0; i < compte->nb_transactions; i++) {
+        printf("%d. %s de %.2f\n", i + 1, compte->transactions[i].type, compte->transactions[i].montant);
+    }
+}
+
+void changer_mot_de_passe(Compte *compte) {
+    char nouveau_mot_de_passe[20];
+    printf("Entrez le nouveau mot de passe: ");
+    scanf("%s", nouveau_mot_de_passe);
+    strcpy(compte->mot_de_passe, nouveau_mot_de_passe);
+    printf("Mot de passe change avec succes!\n");
+}
+
+int connexion(Compte comptes[], int taille, int numero_compte, char* mot_de_passe) {
+    int i;
+    for (i = 0; i < taille; i++) {
+        if (comptes[i].numero_compte == numero_compte && strcmp(comptes[i].mot_de_passe, mot_de_passe) == 0) {
+            return i;
+        }
+    }
+    return -1;
+}
+
+int inscription(Compte comptes[], int *taille) {
+    if (*taille >= MAX_COMPTES) {
+        printf("Nombre maximum de comptes atteint.\n");
+        return *taille;
+    }
+
+    Compte nouveau_compte;
+    printf("Entrez votre nom: ");
+    scanf("%s", nouveau_compte.nom);
+    nouveau_compte.numero_compte = generer_numero_compte(comptes, *taille);
+    printf("Entrez votre mot de passe: ");
+    scanf("%s", nouveau_compte.mot_de_passe);
+    nouveau_compte.solde = 0.0;
+    nouveau_compte.nb_transactions = 0;
+    nouveau_compte.bloque = 0;
+
+    comptes[*taille] = nouveau_compte;
+    (*taille)++;
+
+    printf("Inscription reussie! Votre numero de compte est %d.\n", nouveau_compte.numero_compte);
+    return *taille;
+}
+
+int generer_numero_compte(Compte comptes[], int taille) {
+    int dernier_numero = 1000;
+    if (taille > 0) {
+        dernier_numero = comptes[taille - 1].numero_compte;
+    }
+    return dernier_numero + 1;
+}
+
+int trouver_compte(Compte comptes[], int taille, int numero_compte) {
+    int i;
+    for (i = 0; i < taille; i++) {
+        if (comptes[i].numero_compte == numero_compte) {
+            return i;
+        }
+    }
+    return -1;
+}
